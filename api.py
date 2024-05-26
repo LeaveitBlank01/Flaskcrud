@@ -23,9 +23,25 @@ def get_people():
         cur.execute("SELECT * FROM people")
         data = cur.fetchall()
         cur.close()
-        return jsonify(data)  
+
+        return make_response(jsonify(data), 200)
     except Exception as e:
         return jsonify({"error": str(e)}), 500 
+
+@app.route("/people/<int:id>", methods=["GET"])
+def get_people_by_id(id):
+    cur = mysql.connection.cursor()
+    query =""" 
+    SELECT * FROM new_schema.people where id={}
+    """.format(id)
+    cur.execute(query)
+    data = cur.fetchall()
+    cur.close()
+
+    return make_response(jsonify(data), 200)
+
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)

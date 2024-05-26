@@ -14,7 +14,13 @@ class MyAppTests(unittest.TestCase):
     def test_get_people(self):
         response = self.app.get("/people")
         self.assertEqual(response.status_code, 200)
-        self.assertTrue("John" in response.data.decode())  
+        self.assertTrue("John" in response.data.decode())
+
+    def test_get_people_by_id(self):
+        response = self.app.get("/people/2")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue("Jane" in response.data.decode())
+
 
 if __name__ == "__main__":
     unittest.main()
