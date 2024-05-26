@@ -48,5 +48,21 @@ class MyAppTests(unittest.TestCase):
         self.assertIn("Person deleted successfully", response.data.decode())
 
 
+    def test_search_people(self):
+        with app.app_context():
+            response = self.app.get("/people/search?query=John")
+            self.assertEqual(response.status_code, 200)
+            data = response.get_json()
+            self.assertTrue(len(data) > 0) 
+
+    def test_search_people_no_query(self):
+        with app.app_context():
+            response = self.app.get("/people/search")
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("error", response.get_json()) 
+
+
+
+
 if __name__ == "__main__":
     unittest.main()

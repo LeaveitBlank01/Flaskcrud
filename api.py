@@ -87,13 +87,32 @@ def delete_person(person_id):
 
     return jsonify({"message": "Person deleted successfully"}), 200
 
+@app.route('/people/search', methods=['GET'])
+def search_people():
+    output_format = request.args.get('format', 'json')
+    search_query = request.args.get('query', '')  
+    search_fields = ['first_name', 'last_name', 'city']  
+
+    if not search_query:
+        return format_response({"error": "Please provide a search query."}, output_format), 400
+
+
+    where_clause = " OR ".join([f"{field} LIKE %s" for field in search_fields])
+    query_values = tuple([f"%{search_query}%" for _ in search_fields]) 
+    query = f"SELECT * FROM people WHERE {where_clause}"
+
+    with mysql.connection.cursor() as cur:
+        cur.execute(query, query_values)
+        data = cur.fetchall()
+    return format_response(data, output_format)
+
+
 def format_response(data, output_format='json'):
     if output_format == 'xml':
         xml_data = dicttoxml.dicttoxml(data)
         return Response(xml_data, mimetype='text/xml')
     else:
-        return jsonify(data)  # Default to JSON
-
+        return jsonify(data)
 
 if __name__ == "__main__":
     app.run(debug=True)
