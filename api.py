@@ -1,6 +1,7 @@
-from flask import Flask, make_response, jsonify
+from flask import Flask, jsonify, request
 from flask_mysqldb import MySQL
 import os
+from marshmallow import Schema, fields, ValidationError
 
 app = Flask(__name__)
 
@@ -12,36 +13,75 @@ app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
 mysql = MySQL(app)
 
+class PeopleSchema(Schema):
+    id = fields.Int(dump_only=True)
+    first_name = fields.Str(required=True)
+    last_name = fields.Str(required=True)
+    age = fields.Int(required=True)
+    city = fields.Str()
+
 @app.route("/")
 def hello_world():
     return "<p>Hello, World!</p>"
 
 @app.route("/people", methods=["GET"])
 def get_people():
-    try:
-        cur = mysql.connection.cursor()
+    with mysql.connection.cursor() as cur:
         cur.execute("SELECT * FROM people")
         data = cur.fetchall()
-        cur.close()
+    return jsonify(data)
 
-        return make_response(jsonify(data), 200)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500 
+@app.route("/people/<int:person_id>", methods=["GET"])
+def get_person_by_id(person_id):
+    with mysql.connection.cursor() as cur:
+        cur.execute("SELECT * FROM people WHERE id = %s", (person_id,))
+        data = cur.fetchall()
+    if not data:
+        return jsonify({"error": "Person not found"}), 404
+    return jsonify(data[0])
 
-@app.route("/people/<int:id>", methods=["GET"])
-def get_people_by_id(id):
-    cur = mysql.connection.cursor()
-    query =""" 
-    SELECT * FROM new_schema.people where id={}
-    """.format(id)
-    cur.execute(query)
-    data = cur.fetchall()
-    cur.close()
+@app.route("/people", methods=["POST"])
+def create_person():
+    try:
+        data = PeopleSchema().load(request.get_json())
+        first_name = data['first_name']
+        last_name = data['last_name']
+        age = data['age']
+        city = data.get('city')
 
-    return make_response(jsonify(data), 200)
+        with mysql.connection.cursor() as cur:
+            cur.execute("INSERT INTO people (first_name, last_name, age, city) VALUES (%s, %s, %s, %s)", (first_name, last_name, age, city))
+            mysql.connection.commit()
+            created_person_id = cur.lastrowid
 
+        return jsonify({"message": "Person created successfully", "id": created_person_id}), 201
+    except ValidationError as err:
+        return jsonify(err.messages), 400
 
+@app.route("/people/<int:person_id>", methods=["PUT"])
+def update_person(person_id):
+    try:
+        data = PeopleSchema().load(request.get_json())
+        first_name = data['first_name']
+        last_name = data['last_name']
+        age = data['age']
+        city = data.get('city')
 
+        with mysql.connection.cursor() as cur:
+            cur.execute("UPDATE people SET first_name = %s, last_name = %s, age = %s, city = %s WHERE id = %s", (first_name, last_name, age, city, person_id))
+            mysql.connection.commit()
+
+        return jsonify({"message": "Person updated successfully"}), 200
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+
+@app.route("/people/<int:person_id>", methods=["DELETE"])
+def delete_person(person_id):
+    with mysql.connection.cursor() as cur:
+        cur.execute("DELETE FROM people WHERE id = %s", (person_id,))
+        mysql.connection.commit()
+
+    return jsonify({"message": "Person deleted successfully"}), 200
 
 if __name__ == "__main__":
     app.run(debug=True)
