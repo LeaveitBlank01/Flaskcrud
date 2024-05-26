@@ -2,6 +2,8 @@ from flask import Flask, jsonify, request
 from flask_mysqldb import MySQL
 import os
 from marshmallow import Schema, fields, ValidationError
+import dicttoxml
+
 
 app = Flask(__name__)
 
@@ -26,20 +28,21 @@ def hello_world():
 
 @app.route("/people", methods=["GET"])
 def get_people():
+    output_format = request.args.get('format', 'json')
     with mysql.connection.cursor() as cur:
         cur.execute("SELECT * FROM people")
         data = cur.fetchall()
-    return jsonify(data)
+    return format_response(data, output_format)
 
 @app.route("/people/<int:person_id>", methods=["GET"])
 def get_person_by_id(person_id):
+    output_format = request.args.get('format', 'json')
     with mysql.connection.cursor() as cur:
         cur.execute("SELECT * FROM people WHERE id = %s", (person_id,))
         data = cur.fetchall()
     if not data:
         return jsonify({"error": "Person not found"}), 404
-    return jsonify(data[0])
-
+    return format_response(data[0], output_format)
 @app.route("/people", methods=["POST"])
 def create_person():
     try:
@@ -60,6 +63,7 @@ def create_person():
 
 @app.route("/people/<int:person_id>", methods=["PUT"])
 def update_person(person_id):
+    output_format = request.args.get('format', 'json')
     try:
         data = PeopleSchema().load(request.get_json())
         first_name = data['first_name']
@@ -71,9 +75,9 @@ def update_person(person_id):
             cur.execute("UPDATE people SET first_name = %s, last_name = %s, age = %s, city = %s WHERE id = %s", (first_name, last_name, age, city, person_id))
             mysql.connection.commit()
 
-        return jsonify({"message": "Person updated successfully"}), 200
+        return format_response({"message": "Person updated successfully"}, output_format)
     except ValidationError as err:
-        return jsonify(err.messages), 400
+        return format_response(err.messages, output_format)
 
 @app.route("/people/<int:person_id>", methods=["DELETE"])
 def delete_person(person_id):
@@ -82,6 +86,14 @@ def delete_person(person_id):
         mysql.connection.commit()
 
     return jsonify({"message": "Person deleted successfully"}), 200
+
+def format_response(data, output_format='json'):
+    if output_format == 'xml':
+        xml_data = dicttoxml.dicttoxml(data)
+        return Response(xml_data, mimetype='text/xml')
+    else:
+        return jsonify(data)  # Default to JSON
+
 
 if __name__ == "__main__":
     app.run(debug=True)
